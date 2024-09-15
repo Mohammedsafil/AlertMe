@@ -1,0 +1,148 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Bus Location Tracker with Map</title>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.3/dist/leaflet.css" />
+    <style>
+        #map {
+            height: 400px;
+            width: 100%;
+        }
+        #alertSound {
+            display: none;
+        }
+    </style>
+</head>
+<body>
+    <h1>Bus Location Tracker</h1>
+    <label for="destination">Enter Destination:</label>
+    <input type="text" id="destination" placeholder="Enter destination (city or area)">
+    <br><br>
+    <label for="alertDistance">Enter Alert Distance (in meters):</label>
+    <input type="number" id="alertDistance" placeholder="Enter alert distance in meters" value="300">
+    <br><br>
+    <button id="startTracking">Start Tracking</button>
+
+    <p id="status"></p>
+    <div id="map"></div>
+
+    <!-- Hidden audio element for alert sound -->
+    <audio id="alertSound" src="https://www.soundjay.com/button/beep-07.wav" preload="auto"></audio>
+
+    <script src="https://unpkg.com/leaflet@1.9.3/dist/leaflet.js"></script>
+    <script>
+        let destinationCoords = null;
+        let currentMarker, destinationMarker;
+        const map = L.map('map').setView([51.505, -0.09], 13); // Default center point
+
+        // Initialize map with OpenStreetMap tiles
+        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+            maxZoom: 19,
+        }).addTo(map);
+
+        // Function to calculate the distance between two points using the Haversine formula
+        function calculateDistance(lat1, lon1, lat2, lon2) {
+            const R = 6371; // Radius of the Earth in kilometers
+            const dLat = degreesToRadians(lat2 - lat1);
+            const dLon = degreesToRadians(lon2 - lon1);
+
+            const a = Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+                      Math.cos(degreesToRadians(lat1)) * Math.cos(degreesToRadians(lat2)) *
+                      Math.sin(dLon / 2) * Math.sin(dLon / 2);
+            const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+
+            return R * c * 1000; // Distance in meters
+        }
+
+        // Convert degrees to radians
+        function degreesToRadians(degrees) {
+            return degrees * (Math.PI / 180);
+        }
+
+        // Function to start tracking location
+        function startTracking() {
+            const destination = document.getElementById("destination").value;
+            const alertDistance = parseFloat(document.getElementById("alertDistance").value) || 300; // Default to 300 meters
+
+            if (!destination) {
+                alert("Please enter a destination");
+                return;
+            }
+
+            // Get destination coordinates using OpenCage API
+            const apiKey = '68de54c6e9484e5091b5739b4fb327bc'; // Replace with your OpenCage API key
+            fetch(`https://api.opencagedata.com/geocode/v1/json?q=${encodeURIComponent(destination)}&key=${apiKey}`)
+                .then(response => response.json())
+                .then(data => {
+                    if (data.results.length > 0) {
+                        destinationCoords = {
+                            lat: data.results[0].geometry.lat,
+                            lon: data.results[0].geometry.lng
+                        };
+
+                        // Set the destination marker on the map
+                        if (destinationMarker) {
+                            map.removeLayer(destinationMarker);
+                        }
+                        destinationMarker = L.marker([destinationCoords.lat, destinationCoords.lon]).addTo(map)
+                            .bindPopup(`Destination: ${destination}`).openPopup();
+                        map.setView([destinationCoords.lat, destinationCoords.lon], 13);
+
+                        document.getElementById("status").innerText = `Tracking started. Destination set to: ${destination}`;
+                        trackLocation(alertDistance);
+                    } else {
+                        alert("Unable to find destination coordinates");
+                    }
+                })
+                .catch(error => console.error('Error fetching destination:', error));
+        }
+
+        // Function to track user's current location and alert when near destination
+        function trackLocation(alertDistance) {
+            if (navigator.geolocation) {
+                navigator.geolocation.watchPosition(position => {
+                    const currentLat = position.coords.latitude;
+                    const currentLon = position.coords.longitude;
+
+                    // Set the current location marker on the map
+                    if (currentMarker) {
+                        map.removeLayer(currentMarker);
+                    }
+                    currentMarker = L.marker([currentLat, currentLon]).addTo(map)
+                        .bindPopup("You are here").openPopup();
+
+                    if (destinationCoords) {
+                        const distanceToDestination = calculateDistance(currentLat, currentLon, destinationCoords.lat, destinationCoords.lon);
+                        document.getElementById("status").innerText = `Current Distance to Destination: ${distanceToDestination.toFixed(2)} meters`;
+
+                        // Check if distance is within alert range
+                        if (distanceToDestination <= alertDistance) {
+                            document.getElementById("status").innerText += `\nYou are within ${alertDistance} meters of your destination!`;
+                            playAlertSound();
+                            alert(`You are within ${alertDistance} meters of your destination!`);
+                        }
+                    }
+                }, error => {
+                    console.error('Error getting location:', error);
+                }, {
+                    enableHighAccuracy: true,
+                    maximumAge: 10000,
+                    timeout: 5000
+                });
+            } else {
+                alert("Geolocation is not supported by this browser.");
+            }
+        }
+
+        // Play alert sound when near destination
+        function playAlertSound() {
+            const alertSound = document.getElementById("alertSound");
+            alertSound.play();
+        }
+
+        document.getElementById("startTracking").addEventListener("click", startTracking);
+    </script>
+</body>
+</html>
