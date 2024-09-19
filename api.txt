@@ -1,0 +1,4 @@
+openCage API = 68de54c6e9484e5091b5739b4fb327bc
+Geoapify API = 91e87dcafbff4f3aa8b90ab6c977a07b
+LocationIQ = pk.6cfb3a46ba12d2d20c577e974d42331b
+ipinfo API = a6c4c7f1dc32fe;

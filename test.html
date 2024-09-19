@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Bus Location Tracker with Map</title>
+    <title>Bus Location Tracker</title>
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.3/dist/leaflet.css" />
     <style>
         #map {
@@ -62,7 +62,7 @@
         }
 
         // Function to start tracking location
-        function startTracking() {
+        async function startTracking() {
             const destination = document.getElementById("destination").value;
             const alertDistance = parseFloat(document.getElementById("alertDistance").value) || 300; // Default to 300 meters
 
@@ -71,68 +71,73 @@
                 return;
             }
 
-            // Get destination coordinates using OpenCage API
-            const apiKey = '68de54c6e9484e5091b5739b4fb327bc'; // Replace with your OpenCage API key
-            fetch(`https://api.opencagedata.com/geocode/v1/json?q=${encodeURIComponent(destination)}&key=${apiKey}`)
-                .then(response => response.json())
-                .then(data => {
-                    if (data.results.length > 0) {
-                        destinationCoords = {
-                            lat: data.results[0].geometry.lat,
-                            lon: data.results[0].geometry.lng
-                        };
+            // Get destination coordinates using LocationIQ API
+            const apiKeyLocationIQ = 'pk.6cfb3a46ba12d2d20c577e974d42331b'; // Replace with your LocationIQ API key
+            const geocodingUrl = `https://us1.locationiq.com/v1/search.php?key=${apiKeyLocationIQ}&q=${encodeURIComponent(destination)}&format=json`;
 
-                        // Set the destination marker on the map
-                        if (destinationMarker) {
-                            map.removeLayer(destinationMarker);
-                        }
-                        destinationMarker = L.marker([destinationCoords.lat, destinationCoords.lon]).addTo(map)
-                            .bindPopup(`Destination: ${destination}`).openPopup();
-                        map.setView([destinationCoords.lat, destinationCoords.lon], 13);
+            try {
+                const destinationResponse = await fetch(geocodingUrl);
+                const destinationData = await destinationResponse.json();
 
-                        document.getElementById("status").innerText = `Tracking started. Destination set to: ${destination}`;
-                        trackLocation(alertDistance);
-                    } else {
-                        alert("Unable to find destination coordinates");
+                if (destinationData.length > 0) {
+                    destinationCoords = {
+                        lat: destinationData[0].lat,
+                        lon: destinationData[0].lon
+                    };
+
+                    // Set the destination marker on the map
+                    if (destinationMarker) {
+                        map.removeLayer(destinationMarker);
                     }
-                })
-                .catch(error => console.error('Error fetching destination:', error));
+                    destinationMarker = L.marker([destinationCoords.lat, destinationCoords.lon]).addTo(map)
+                        .bindPopup(`Destination: ${destination}`).openPopup();
+                    map.setView([destinationCoords.lat, destinationCoords.lon], 13);
+
+                    document.getElementById("status").innerText = `Tracking started. Destination set to: ${destination}`;
+                    trackLocation(alertDistance);
+                } else {
+                    alert("Unable to find destination coordinates");
+                }
+            } catch (error) {
+                console.error('Error fetching destination:', error);
+            }
         }
 
-        // Function to track user's current location and alert when near destination
-        function trackLocation(alertDistance) {
-            if (navigator.geolocation) {
-                navigator.geolocation.watchPosition(position => {
-                    const currentLat = position.coords.latitude;
-                    const currentLon = position.coords.longitude;
+        // Function to track user's current location using ipwho.is and alert when near destination
+        async function trackLocation(alertDistance) {
+            try {
+                // Use ipwho.is to get the current location
+                const response = await fetch('http://ipwho.is/');
+                const locationData = await response.json();
+                
+                if (!locationData.success) {
+                    throw new Error('Error fetching location');
+                }
+                
+                const currentLat = locationData.latitude;
+                const currentLon = locationData.longitude;
 
-                    // Set the current location marker on the map
-                    if (currentMarker) {
-                        map.removeLayer(currentMarker);
+                // Set the current location marker on the map
+                if (currentMarker) {
+                    map.removeLayer(currentMarker);
+                }
+                currentMarker = L.marker([currentLat, currentLon]).addTo(map)
+                    .bindPopup("You are here").openPopup();
+                map.setView([currentLat, currentLon], 13);
+
+                if (destinationCoords) {
+                    const distanceToDestination = calculateDistance(currentLat, currentLon, destinationCoords.lat, destinationCoords.lon);
+                    document.getElementById("status").innerText = `Current Distance to Destination: ${distanceToDestination.toFixed(2)} meters`;
+
+                    // Check if distance is within alert range
+                    if (distanceToDestination <= alertDistance) {
+                        document.getElementById("status").innerText += `\nYou are within ${alertDistance} meters of your destination!`;
+                        playAlertSound();
+                        alert(`You are within ${alertDistance} meters of your destination!`);
                     }
-                    currentMarker = L.marker([currentLat, currentLon]).addTo(map)
-                        .bindPopup("You are here").openPopup();
-
-                    if (destinationCoords) {
-                        const distanceToDestination = calculateDistance(currentLat, currentLon, destinationCoords.lat, destinationCoords.lon);
-                        document.getElementById("status").innerText = `Current Distance to Destination: ${distanceToDestination.toFixed(2)} meters`;
-
-                        // Check if distance is within alert range
-                        if (distanceToDestination <= alertDistance) {
-                            document.getElementById("status").innerText += `\nYou are within ${alertDistance} meters of your destination!`;
-                            playAlertSound();
-                            alert(`You are within ${alertDistance} meters of your destination!`);
-                        }
-                    }
-                }, error => {
-                    console.error('Error getting location:', error);
-                }, {
-                    enableHighAccuracy: true,
-                    maximumAge: 10000,
-                    timeout: 5000
-                });
-            } else {
-                alert("Geolocation is not supported by this browser.");
+                }
+            } catch (error) {
+                console.error('Error fetching current location:', error);
             }
         }
 

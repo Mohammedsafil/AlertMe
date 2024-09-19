@@ -1,0 +1,46 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Geolocation</title>
+</head>
+<body>
+    <h1>Your Location is Here!</h1>
+    <button id="loc" style="width: 100px; height: 40px; color: blueviolet; background-color: black;" >Click To get location</button>
+    <div id="here"></div>
+</body>
+<script>
+    const button = document.getElementById("loc");
+ 
+    button.addEventListener("click",async (loc) =>{
+        try {
+            // Call the IP geolocation API
+            const response = await fetch('https://ipinfo.io/json?token=a6c4c7f1dc32fe');
+            const data = await response.json();
+
+            // Parse location data
+            const location = data.loc.split(",");
+            const latitude = location[0] - 0.023777;
+            const longitude = location[1] + 0.00427;
+
+            console.log(`Latitude: ${latitude}`);
+            console.log(`Longitude: ${longitude}`);
+            console.log(`City: ${data.city}`);
+            console.log(`Region: ${data.region}`);
+            console.log(`Country: ${data.country}`);
+            let place = `
+            <a href = "https://www.openstreetmap.org/#map=20/${latitude}/${longitude}&layers=NDG" target = "blank">Here is your location , click to go...</a>`;
+            document.getElementById("here").innerHTML = place;
+
+        } catch (error) {
+            console.error('Error fetching location:', error);
+        }
+    })
+
+    // a6c4c7f1dc32fe
+    // 10.982682/76.967704
+    // 10.982529/76.968659
+    // 11.0055 /76.9661
+</script>
+</html>
